@@ -36,9 +36,13 @@ def grey(img: BuildImage):
     return make_png_or_gif([img], lambda imgs: imgs[0].convert("L"))
 
 
-def rotate(num: Optional[int], img: BuildImage):
-    angle = num or 90
-    return make_png_or_gif([img], lambda imgs: imgs[0].rotate(angle, expand=True))
+def rotate(arg: str, img: BuildImage):
+    angle = 90
+    if arg:
+        match = re.search(r"[-+]?\d+", arg)
+        if match:
+            angle = int(match.group())
+    return make_png_or_gif([img], lambda imgs: imgs[0].rotate(-angle, expand=True))
 
 
 def resize(arg: str, img: BuildImage):

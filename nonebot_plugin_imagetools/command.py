@@ -38,6 +38,8 @@ arg_images = Args["imgs", MultiVar(Image, "+")]
 arg_num_image = Args["num?", int, 0]["img", Image]
 arg_num_images = Args["num?", int, 0]["imgs", MultiVar(Image, "+")]
 arg_text_image = Args["arg", str]["img", Image]
+# 自定义旋转
+arg_opt_text_image = Args["arg?", str, ""]["img", Image]
 
 
 @dataclass
@@ -51,7 +53,7 @@ commands = [
     Command(("水平翻转", "左翻", "右翻"), arg_image, flip_horizontal),
     Command(("竖直翻转", "上翻", "下翻"), arg_image, flip_vertical),
     Command(("灰度图", "黑白"), arg_image, grey),
-    Command(("旋转",), arg_num_image, rotate),
+    Command(("旋转",), arg_opt_text_image, rotate),
     Command(("缩放",), arg_text_image, resize),
     Command(("裁剪",), arg_text_image, crop),
     Command(("反相", "反色"), arg_image, invert),
