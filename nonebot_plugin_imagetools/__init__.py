@@ -24,6 +24,7 @@ from nonebot_plugin_alconna import (
     Image,
     UniMessage,
     on_alconna,
+    CommandMeta,
 )
 from nonebot_plugin_alconna.builtins.extensions.reply import ReplyMergeExtension
 from nonebot_plugin_alconna.uniseg.tools import image_fetch
@@ -88,7 +89,7 @@ def help_image() -> BytesIO:
 
 def create_matcher(command: Command):
     command_matcher = on_alconna(
-        Alconna(command.keywords[0], command.args),
+        Alconna(command.keywords[0], command.args, meta=CommandMeta(compact=True, strict=False)),
         aliases=set(command.keywords[1:]),
         block=True,
         priority=13,
@@ -107,10 +108,15 @@ def create_matcher(command: Command):
         async def fetch_image(image: Image):
             content = await image_fetch(event, bot, state, image)
             if content:
-                return BuildImage.open(BytesIO(content))
+                from PIL import ImageOps
+                b_img = BuildImage.open(BytesIO(content))
+                if getattr(b_img.image, "is_animated", False):
+                    return b_img
+                return BuildImage(ImageOps.exif_transpose(b_img.image).convert("RGBA"))
             await matcher.finish("图片下载失败")
 
         args = alc_matches.all_matched_args
+        args.pop("dummy_text", None)
         if image := args.get("img"):
             args["img"] = await fetch_image(image)
         if images := args.get("imgs"):
