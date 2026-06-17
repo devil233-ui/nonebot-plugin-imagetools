@@ -33,14 +33,13 @@ from .functions import (
 
 arg_text = Args["arg", str]
 arg_texts = Args["args", MultiVar(str, "+")]
-arg_image = Args["dummy_text?", str, ""]["img", Image]
-arg_images = Args["dummy_text?", str, ""]["imgs", MultiVar(Image, "+")]
-arg_num_image = Args["num?", int, 0]["dummy_text?", str, ""]["img", Image]
-arg_num_images = Args["num?", int, 0]["dummy_text?", str, ""]["imgs", MultiVar(Image, "+")]
-arg_text_image = Args["arg", str]["dummy_text?", str, ""]["img", Image]
+arg_image = Args["img?", Image]
+arg_images = Args["imgs?", MultiVar(Image, "+")]
+arg_num_image = Args["num?", int, 0]["img?", Image]
+arg_num_images = Args["num?", int, 0]["imgs?", MultiVar(Image, "+")]
+arg_text_image = Args["arg", str]["img?", Image]
 # 自定义旋转
-arg_opt_text_image = Args["arg?", str, ""]["dummy_text?", str, ""]["img", Image]
-
+arg_opt_text_image = Args["arg?", str, ""]["img?", Image]
 
 @dataclass
 class Command:

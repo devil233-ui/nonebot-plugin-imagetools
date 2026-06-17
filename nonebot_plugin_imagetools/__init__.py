@@ -28,6 +28,34 @@ from nonebot_plugin_alconna import (
 )
 from nonebot_plugin_alconna.builtins.extensions.reply import ReplyMergeExtension
 from nonebot_plugin_alconna.uniseg.tools import image_fetch
+import inspect
+# from nonebot_plugin_alconna import Extension, Arparma
+# from nonebot.log import logger
+
+# class DebugExtension(Extension):
+#     @property
+#     def priority(self) -> int:
+#         return 99
+
+#     @property
+#     def id(self) -> str:
+#         return "imagetools_debug"
+
+#     async def receive_wrapper(self, bot, event, command, receive):
+#         if command.name in ["旋转", "竖直翻转", "上翻"]:
+#             logger.warning(f"\n========== Alconna Debug: {command.name} ==========")
+#             logger.warning(f"[Raw Event MSG] {event.get_message()}")
+#             logger.warning(f"[Merged UniMsg] {receive}")
+#         return receive
+
+#     def post_parse(self, alc, arp: Arparma):
+#         if alc.name in ["旋转", "竖直翻转", "上翻"]:
+#             logger.warning(f"[Parse Result] matched={arp.matched}")
+#             if not arp.matched:
+#                 logger.warning(f"[Parse Error] {arp.error_info}")
+#             else:
+#                 logger.warning(f"[Parse Args] {arp.all_matched_args}")
+#             logger.warning("===================================================\n")
 
 from .command import Command, commands
 from .config import Config, imagetools_config
@@ -37,22 +65,19 @@ __plugin_meta__ = PluginMetadata(
     description="简单图片操作",
     usage="发送“图片操作”查看支持的指令",
     type="application",
-    homepage="https://github.com/noneplugin/nonebot-plugin-imagetools",
+    homepage="https://github.com/devil233-ui/nonebot-plugin-imagetools",
     config=Config,
     supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna"),
 )
-
 
 help_cmd = on_alconna(
     "图片操作", aliases={"图片工具"}, block=True, priority=13, use_cmd_start=True
 )
 
-
 @help_cmd.handle()
 async def _():
     img = await run_sync(help_image)()
     await UniMessage.image(raw=img).send()
-
 
 def help_image() -> BytesIO:
     head_text = "简单图片操作，支持的操作："
@@ -94,7 +119,7 @@ def create_matcher(command: Command):
         block=True,
         priority=13,
         use_cmd_start=True,
-        extensions=[ReplyMergeExtension()],
+        # extensions=[ReplyMergeExtension(), DebugExtension()],
     )
 
     @command_matcher.handle()
@@ -116,13 +141,50 @@ def create_matcher(command: Command):
             await matcher.finish("图片下载失败")
 
         args = alc_matches.all_matched_args
-        args.pop("dummy_text", None)
-        if image := args.get("img"):
-            args["img"] = await fetch_image(image)
-        if images := args.get("imgs"):
-            args["imgs"] = [await fetch_image(image) for image in images]
+        
+        # --- 手动智能提取图片逻辑 ---
+        import inspect
+        from nonebot_plugin_alconna import Reply
+        
+        msg = await UniMessage.generate(event=event, bot=bot)
+        extracted_images = list(msg.get(Image))
+        
+        # 尝试剥取回复里的图片
+        if msg.has(Reply):
+            reply = msg.get(Reply)[0]
+            if hasattr(reply, "msg") and reply.msg:
+                for seg in reply.msg:
+                    if isinstance(seg, Image):
+                        extracted_images.append(seg)
+                    elif getattr(seg, "type", "") == "image":
+                        data = getattr(seg, "data", {})
+                        img_id = data.get("file") or data.get("file_id")
+                        img_url = data.get("url")
+                        extracted_images.append(Image(id=img_id, url=img_url))
 
-        result = await run_sync(command.func)(**args)
+        sig = inspect.signature(command.func)
+
+        # --- 根据函数需要分配图片 ---
+        if "img" in sig.parameters:
+            # 优先用 Alconna 匹配到的，如果没有就用手动提取到的第一张
+            image_seg = args.get("img") or (extracted_images[0] if extracted_images else None)
+            if not image_seg:
+                await matcher.finish("缺少图片，请发送或回复图片")
+            args["img"] = await fetch_image(image_seg)
+            
+        elif "imgs" in sig.parameters:
+            image_segs = args.get("imgs")
+            if not image_segs:
+                image_segs = extracted_images
+            if isinstance(image_segs, Image):
+                image_segs = [image_segs]
+            if not image_segs:
+                await matcher.finish("缺少图片，请发送或回复多张图片")
+            args["imgs"] = [await fetch_image(i) for i in image_segs]
+
+        # 过滤掉 Alconna 产生的内部参数（如 $extra），只保留函数真正需要的参数
+        valid_args = {k: v for k, v in args.items() if k in sig.parameters}
+        result = await run_sync(command.func)(**valid_args)
 
         if isinstance(result, str):
             await matcher.finish(result)
